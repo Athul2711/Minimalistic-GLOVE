@@ -1,0 +1,316 @@
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+
+
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+Adafruit_MPU6050 mpu;
+
+
+String att;
+const char* ssid = "hlo12";
+const char* password = "1231231234";
+
+WebServer server(80);
+
+const int led = 27;
+
+
+
+
+
+
+
+
+
+
+
+int delayy=0;
+  int modee =0;
+
+bool debug = 0; // toggle variable to turn debug on/off
+const int LED_PIN = 27;
+const int LED_PINyell = 17;
+const int LED_PINreg = 18;
+
+bool ledState = false;
+
+char encodedData[300]; // buffer for encoded data
+
+
+
+
+
+
+
+
+
+
+
+
+void handleRoot() {
+
+  digitalWrite(led, 1);
+
+
+
+
+
+    int adcValue5 = analogRead(39); // read ADC value from pin 39
+
+  int adcValue3 = analogRead(36); // read ADC value from pin 36
+  int adcValue4 = analogRead(39); // read ADC value from pin 39
+  
+  int adcValue1=map(analogRead(33),2650,2900,0,1024);
+  int adcValue2=map(analogRead(32),2750,2900,0,1024);
+
+
+  
+  int batteryVoltage = analogRead(35); // read ADC value from pin 35 for battery voltage
+  
+  float ax, ay, az;
+  float gx, gy, gz;
+
+
+
+sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+
+  
+ax=a.acceleration.x;
+ay=a.acceleration.y;
+az=a.acceleration.z;
+gx=g.gyro.x;
+gy=g.gyro.y;
+gz=g.gyro.z;
+  att = String(adcValue1) + "," + String(adcValue2) + "," + 
+                String(adcValue3) + "," + String(adcValue4) + "," + 
+                String(modee) + "," + String(ax) + "," + 
+                String(ay) + "," + String(az) + "," + String(gx) + "," + 
+                String(gy) + "," + String(gz);
+
+
+
+
+
+
+  // output the encoded data to the serial port (debug mode only)
+  if (debug) {
+    Serial.println("Encoded data: " + String(att));
+  }
+
+
+
+
+
+if(adcValue1>890 && adcValue2>890){
+delayy++;
+switch (modee) {
+    case 0:  // your hand is on the sensor
+digitalWrite(LED_PINreg,LOW);
+digitalWrite(LED_PINyell,HIGH);
+
+      break;
+    case 1:  // your hand is close to the sensor
+digitalWrite(LED_PINreg,HIGH);
+digitalWrite(LED_PINyell,LOW);
+      break;
+    case 2:  // your hand is a few inches from the sensor
+digitalWrite(LED_PINreg,HIGH);
+digitalWrite(LED_PINyell,HIGH);
+      break;
+    case 3:  // your hand is nowhere near the sensor
+digitalWrite(LED_PINreg,LOW);
+digitalWrite(LED_PINyell,LOW);
+      break;
+  }
+
+
+
+
+
+
+
+if(delayy>40){
+delayy=0;
+
+modee++;
+if(modee>3){
+delayy=0;
+modee=0;
+
+  
+}
+  
+}
+
+  
+}
+
+
+
+
+
+
+  
+  server.send(200, "text/plain", att);
+  digitalWrite(led, 0);
+}
+
+void handleNotFound() {
+  digitalWrite(led, 1);
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  }
+  server.send(404, "text/plain", message);
+  digitalWrite(led, 0);
+}
+
+void setup(void) {
+  pinMode(led, OUTPUT);
+  digitalWrite(led, 0);
+  Serial.begin(115200);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.println("");
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  if (MDNS.begin("esp32")) {
+    Serial.println("MDNS responder started");
+  }
+
+  server.on("/", handleRoot);
+
+  server.on("/inline", []() {
+    server.send(200, "text/plain", "this works as well");
+  });
+
+  server.onNotFound(handleNotFound);
+
+  server.begin();
+  Serial.println("HTTP server started");
+
+
+
+  pinMode(LED_PIN, OUTPUT);
+    pinMode(LED_PINyell, OUTPUT);
+  pinMode(LED_PINreg, OUTPUT);
+    pinMode(25, INPUT_PULLUP);
+    pinMode(26, INPUT_PULLUP);
+
+    pinMode(36, INPUT_PULLUP);
+  pinMode(39, INPUT_PULLUP);
+  pinMode(32, INPUT_PULLUP);
+  pinMode(33, INPUT_PULLUP);
+  pinMode(34, INPUT_PULLUP);
+
+  digitalWrite(LED_PIN, LOW);
+
+
+if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (mpu.getAccelerometerRange()) {
+  case MPU6050_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case MPU6050_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case MPU6050_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case MPU6050_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  Serial.print("Gyro range set to: ");
+  switch (mpu.getGyroRange()) {
+  case MPU6050_RANGE_250_DEG:
+    Serial.println("+- 250 deg/s");
+    break;
+  case MPU6050_RANGE_500_DEG:
+    Serial.println("+- 500 deg/s");
+    break;
+  case MPU6050_RANGE_1000_DEG:
+    Serial.println("+- 1000 deg/s");
+    break;
+  case MPU6050_RANGE_2000_DEG:
+    Serial.println("+- 2000 deg/s");
+    break;
+  }
+
+  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+  Serial.print("Filter bandwidth set to: ");
+  switch (mpu.getFilterBandwidth()) {
+  case MPU6050_BAND_260_HZ:
+    Serial.println("260 Hz");
+    break;
+  case MPU6050_BAND_184_HZ:
+    Serial.println("184 Hz");
+    break;
+  case MPU6050_BAND_94_HZ:
+    Serial.println("94 Hz");
+    break;
+  case MPU6050_BAND_44_HZ:
+    Serial.println("44 Hz");
+    break;
+  case MPU6050_BAND_21_HZ:
+    Serial.println("21 Hz");
+    break;
+  case MPU6050_BAND_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case MPU6050_BAND_5_HZ:
+    Serial.println("5 Hz");
+    break;
+  }
+
+  Serial.println("");
+  delay(100);
+
+
+    Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP());
+
+
+  
+}
+
+void loop(void) {
+  server.handleClient();
+  delay(1);//allow the cpu to switch to other tasks
+}
